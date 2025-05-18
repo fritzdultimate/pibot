@@ -227,20 +227,20 @@ async function submitFinalTransaction(account: stellarSDK.AccountResponse) {
   // Schedule final transaction submission
   const finalDelay = unlockTime.getTime() - Date.now();
   setTimeout(async () => {
-    const MAX_TRIES = 30;
+    const MAX_TRIES = 100;
     let tries = 0;
     let success = false;
     while (!success && tries < MAX_TRIES) {
         console.log(`Sending Pi: ${tries} times(s)`);
         success = await submitPreSignTxs();
         if(!success) {
-            await sleep(100);
             const account = await server.loadAccount(sourceKeypair.publicKey());
             const current = await checkBalanceThrottled();
             console.log(`Balance now: ${current}`);
             // success = await submitFinalTransaction(account);
             // submitDummyTransactions(account);
             await preSignTxs(account, Number(current));
+            await sleep(50);
         }
         tries++;
     }
