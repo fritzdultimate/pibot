@@ -3,7 +3,7 @@ import * as stellarSDK from 'stellar-sdk'
 import * as bip39 from 'bip39';
 import { derivePath } from 'ed25519-hd-key';
 
-const UNLOCK_TIME_STRING = "2025-05-18 19:10:16"
+const UNLOCK_TIME_STRING = "2025-05-18 19:52:11"
 const DUMMY_BUFFER_SECONDS = 10;
 const PRESIGN_BUFFER_SECONDS = 2;
 const TOTAL_DUMMIES = 20;
@@ -15,7 +15,7 @@ const RECEIVER_MAIN = process.env.RECEIVER_ADDRESS_MAIN!;
 const RECEIVER_TEST = process.env.RECEIVER_ADDRESS!;
 const ONTESTNET = false;
 const FIXED_FEE = 1;
-const AMOUNT_TO_WITHDRAW = 425.0;
+const AMOUNT_TO_WITHDRAW = 420.0;
 let TXS: string[] = [];
 
 

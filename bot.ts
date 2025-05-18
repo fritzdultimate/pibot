@@ -16,7 +16,7 @@ const MNEMONIC = process.env.MNEMONIC!;
 const RECEIVER_MAIN = process.env.RECEIVER_ADDRESS_MAIN!;
 const RECEIVER_TEST = process.env.RECEIVER_ADDRESS!;
 const ONTESTNET = false;
-const AMOUNT_TO_WITHDRAW = 10;
+const AMOUNT_TO_WITHDRAW = 420;
 let TXS: string[] = [];
 
 
