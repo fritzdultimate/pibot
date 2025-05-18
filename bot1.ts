@@ -3,7 +3,7 @@ import * as stellarSDK from 'stellar-sdk'
 import * as bip39 from 'bip39';
 import { derivePath } from 'ed25519-hd-key';
 
-const UNLOCK_TIME_STRING = "2025-05-18 18:26:16"
+const UNLOCK_TIME_STRING = "2025-05-18 19:10:16"
 const DUMMY_BUFFER_SECONDS = 10;
 const PRESIGN_BUFFER_SECONDS = 2;
 const TOTAL_DUMMIES = 20;
@@ -48,7 +48,8 @@ async function preSignTxs(acct = account,  withdrawal_amount = AMOUNT_TO_WITHDRA
         let totalBalance = withdrawal_amount * 1e7;
         let maxSendAmount = (totalBalance - fee) / 1e7;
 
-        const tx = new stellarSDK.TransactionBuilder(acct, {
+        const cloneAccount = new stellarSDK.Account(acct.accountId(), (BigInt(acct.sequence) + BigInt(i + 1)).toString());
+        const tx = new stellarSDK.TransactionBuilder(cloneAccount, {
             fee: fee.toString(),
             networkPassphrase: "Pi Network",
         })

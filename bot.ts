@@ -41,9 +41,8 @@ function sleep(ms: number) {
 }
 
 
-async function preSignTxs(acct = account, withdrawal_amount = AMOUNT_TO_WITHDRAW) {
+function preSignTxs(acct = account, withdrawal_amount = AMOUNT_TO_WITHDRAW) {
     console.log("\n🚨 Started Presigning Transactions.");
-    let sequence = BigInt(acct.sequence);
 
     let fee_percent = 2;
 
@@ -52,30 +51,21 @@ async function preSignTxs(acct = account, withdrawal_amount = AMOUNT_TO_WITHDRAW
         let fee = Math.floor(fee_factor * 10_000_000);
         let totalBalance = withdrawal_amount * 1e7;
         let maxSendAmount = (totalBalance - fee) / 1e7;
-        // const cloneAccount = new stellarSDK.Account(acct.accountId(), (sequence + BigInt(i + 1)).toString());
-        let account = await server.loadAccount(sourceKeypair.publicKey());
-        const tx = new stellarSDK.TransactionBuilder(account, {
+        const cloneAccount = new stellarSDK.Account(acct.accountId(), (BigInt(acct.sequence) + BigInt(i + 1)).toString());
+        const tx = new stellarSDK.TransactionBuilder(cloneAccount, {
             fee: ONTESTNET ? (10000).toString() : fee.toString(),
             networkPassphrase: ONTESTNET ? "Pi Testnet" : "Pi Network",
         })
         .addOperation(stellarSDK.Operation.payment({
             destination: ONTESTNET ? RECEIVER_TEST : RECEIVER_MAIN,
             asset: stellarSDK.Asset.native(),
-            amount: (2).toFixed(7),
+            amount: (maxSendAmount).toFixed(7),
         }))
         .setTimeout(30)
         .build();
 
         tx.sign(sourceKeypair);
         TXS.push(tx.toXDR());
-
-        server.submitTransaction(tx).then(res => {
-            console.log(res)
-        })
-        .catch(err => {
-            console.dir(err, { depth: null, colors: true });
-            // console.log(err)
-        })
     }
 }
 
@@ -90,11 +80,10 @@ async function submitPreSignTxs() {
             );
             return await server.submitTransaction(tx);
         } catch (err) {
-            // We don't throw, so Promise.any can skip failed ones
             return Promise.reject(err);
         }
     })).then(res => {
-        console.log("✅ One TX sent successfully:", res.hash);
+        console.log("✅ One TX sent successfully: ", res.hash);
         hash = res.hash;
     }).catch(err => {
         if (err.response?.data?.extras?.result_codes) {
@@ -117,35 +106,41 @@ function formatCountdown(ms: number) {
 }
 
 
-async function submitDummyTransactions(account: stellarSDK.AccountResponse) {
-    console.log("\n🚨 Submitting dummy transactions...");
-    let hash;
-    for(let i = 0; i < TOTAL_DUMMIES; i++) {
-        const dummyTx = new stellarSDK.TransactionBuilder(account, {
-            fee: (100_000 * (i + 1)).toString(),
-            networkPassphrase: ONTESTNET ? 'Pi Testnet' : 'Pi Network',
+async function submitFinalTransactions(withdrawal_amount = AMOUNT_TO_WITHDRAW) {
+    console.log("\n🚨 Started Presigning Transactions.");
+
+    let fee_percent = 2;
+    let hash = null;
+
+    for (let i = 0; i < MAX_REAL_TXS; i++) {
+        let fee_factor = withdrawal_amount * 0.01 * (fee_percent * (i + 1));
+        let fee = Math.floor(fee_factor * 10_000_000);
+        let totalBalance = withdrawal_amount * 1e7;
+        let maxSendAmount = (totalBalance - fee) / 1e7;
+        let account = await server.loadAccount(sourceKeypair.publicKey());
+        const tx = new stellarSDK.TransactionBuilder(account, {
+            fee: ONTESTNET ? (10000).toString() : fee.toString(),
+            networkPassphrase: ONTESTNET ? "Pi Testnet" : "Pi Network",
         })
         .addOperation(stellarSDK.Operation.payment({
             destination: ONTESTNET ? RECEIVER_TEST : RECEIVER_MAIN,
             asset: stellarSDK.Asset.native(),
-            amount: "0.0000001",
+            amount: (maxSendAmount).toFixed(7),
         }))
         .setTimeout(30)
         .build();
-        dummyTx.sign(sourceKeypair);
 
-        try {
-            server.submitTransaction(dummyTx)
-              .then(result => {
-                    console.log(`\n No. ${i+1} Dummy TX sent ✅ — rivals using this sequence will now fail.`);
-                    hash = result.hash;
-              })
-              await sleep(100);
-        } catch (e) {
-            console.error("Dummy TX failed 🚫", e.response.data);
-        }
+        tx.sign(sourceKeypair);
+        TXS.push(tx.toXDR());
+
+        server.submitTransaction(tx).then(res => {
+            hash = res.hash;
+        })
+        .catch(err => {
+            console.dir(err, { depth: null, colors: true });
+        })
     }
-    return hash;
+    return hash != null;
 }
 
 
@@ -166,7 +161,7 @@ async function submitDummyTransactions(account: stellarSDK.AccountResponse) {
     const presignDelay = preSignStartTime.getTime() - Date.now();
     setTimeout(async () => {
         console.log("🚀 Presigning TX");
-        // preSignTxs();
+        preSignTxs();
     }, presignDelay);
 
 })();
@@ -195,28 +190,27 @@ async function checkBalanceThrottled() {
     if (now - lastChecked < throttle) return null;
 
     lastChecked = now;
-    const acct = await server.loadAccount(RECEIVER_MAIN);
+    const acct = await server.loadAccount(sourceKeypair.publicKey());
     const bal = getBalance(acct);
     return parseFloat(bal);
 }
 
-await preSignTxs();
-// await submitPreSignTxs();
-
-let bal = await checkBalanceThrottled();
-console.log(bal);
-
-// while(!success  && retries < 5) {
-//     const current = await checkBalanceThrottled();
-//     if (current !== initialBalance) {
-//         console.log("📉 Balance dropped — transaction likely sent!");
-//         success = await submitPreSignTxs();
-//         if (!success) {
-//             const senderAcct = await server.loadAccount(sourceKeypair.publicKey());
-//             preSignTxs(senderAcct, Number(current));
-//             retries++;
-//         }
-//         initialBalance = current;
-//     }
-//     await sleep(100);
-// }
+while(!success  && retries < 500) {
+    const current = await checkBalanceThrottled();
+    console.log(`Current Balance: ${current}`)
+    console.log(`Initial Balance: ${initialBalance}`)
+    if (current !== initialBalance) {
+        console.log("📉 Balance dropped — Pi likely Unlocked!");
+        success = await submitPreSignTxs();
+        success = await submitFinalTransactions(Number(current));
+        if (!success) {
+            const senderAcct = await server.loadAccount(sourceKeypair.publicKey());
+            preSignTxs(senderAcct, Number(current));
+            retries++;
+        }
+        initialBalance = current;
+    } else {
+        console.log(`Pi is not yet unlocked... Still checking`);
+    }
+    await sleep(100);
+}
