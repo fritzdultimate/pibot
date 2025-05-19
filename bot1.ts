@@ -3,7 +3,7 @@ import * as stellarSDK from 'stellar-sdk'
 import * as bip39 from 'bip39';
 import { derivePath } from 'ed25519-hd-key';
 
-const UNLOCK_TIME_STRING = "2025-05-18 19:52:11"
+const UNLOCK_TIME_STRING = "2025-05-18 00:50:20"
 const DUMMY_BUFFER_SECONDS = 10;
 const PRESIGN_BUFFER_SECONDS = 2;
 const TOTAL_DUMMIES = 20;
