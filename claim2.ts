@@ -5,7 +5,7 @@ import * as bip39 from 'bip39';
 import { derivePath } from 'ed25519-hd-key';
 
 const t = Date.now();
-const UNLOCK_TIME_STRING = "2025-05-19 01:43:03"
+const UNLOCK_TIME_STRING = "2025-05-19 02:17:18"
 const DUMMY_BUFFER_SECONDS = 10;
 const PRESIGN_BUFFER_SECONDS = 0.5;
 const TOTAL_DUMMIES = 5;
@@ -50,7 +50,7 @@ function sleep(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function claimAndMovePi() {
+async function claimAndMovePi(i: number) {
     let claimable = await server.claimableBalances()
         .claimant(sourcePublicKey)
         .limit(10)
@@ -62,23 +62,22 @@ async function claimAndMovePi() {
         return false;
     }
     console.log(`\n Wallet is claimable now\n`);
-    console.log(claimable.records);
+    console.log(claimable.records[0]);
 
     let account = await server.loadAccount(sourcePublicKey);
 
     // let fee = await server.fetchBaseFee();
     const txBuilder = new stellarSDK.TransactionBuilder(account, {
-        fee: (10_000_000).toString(),
+        fee: (10_000_000 * i).toString(),
         networkPassphrase: "Pi Network"
     });
 
     // Claim builder
     const claimTxBuilder = new stellarSDK.TransactionBuilder(account, {
-        fee: (10_000_000).toString(),
+        fee: (10_000_000 * i).toString(),
         networkPassphrase: "Pi Network",
     });
 
-    let transaction_hash: null | string = null;
     console.log(`\n Starting the claiming process now`);
     for(let record of claimable.records) {
         console.log("Adding claim operation for balance ID", record.id);
@@ -102,7 +101,7 @@ async function claimAndMovePi() {
         return false;
     }
 
-    await sleep(200);
+    await sleep(100);
 
      account = await server.loadAccount(sourcePublicKey);
 
@@ -110,7 +109,7 @@ async function claimAndMovePi() {
     console.log("Account subentry count:", account.subentry_count);
     const balances = account.balances.find(b => b.asset_type === 'native');
     const total = parseFloat(balances?.balance ?? "0");
-    const available = total - 1.0;
+    const available = total - (3.0 * i);
     if (available <= 0) {
         console.error("❌ Not enough balance to send", total);
     } else {
@@ -133,23 +132,23 @@ async function claimAndMovePi() {
 
     try {
         console.log(`\nSubmitting merge transaction`);
-        console.log("Number of operations in merge TX:", mergeTx.operations.length);
-        console.log("Merge TX XDR:", mergeTx.toXDR());
         const mergeResult = await server.submitTransaction(mergeTx);
-        console.log(`✅ Account merged successfully: ${mergeResult.hash}`);
-        return true;
+        if(mergeResult.hash) {
+            console.log(`✅ Account merged successfully: ${mergeResult.hash}`);
+            return true;
+        }
+        return false;
     } catch (err) {
         console.error("❌ Merge transaction failed:", err.response?.data || err.message);
         return false;
     }
-
-    return transaction_hash != null;
 }
 
 (async () => {
     let success = false;
     let max_retries = 10;
     let retries = 0;
+    let max_tx_per_go = 3;
 
     console.log("🚀 Pi Slot-Taking Started");
     const countdownInterval = setInterval(() => {
@@ -167,15 +166,20 @@ async function claimAndMovePi() {
     console.log(`Final Milliseconds: ${finalDelay}`);
     setTimeout(async () => {
         do {
-            console.log(`\n Started the Claiming and Moving Process`);
-            success = await claimAndMovePi();
+            for(let i = 0; i < max_tx_per_go; i++) {
+                console.log(`\n Started the Claiming and Moving Process`);
+                success = await claimAndMovePi(i + 1);
+                await sleep(100)
+            }
         } while(!success && retries < max_retries) {
-            console.log(`\n Repeating Claiming and Moving Process ${retries} times`);
-            success = await claimAndMovePi();
-            await sleep(500);
-            if(retries >= max_retries || success) {
-                console.log(`Exiting process now after ${retries} tries.`)
-                process.exit(1);
+            for(let i = 0; i < max_tx_per_go; i++) {
+                console.log(`\n Repeating Claiming and Moving Process ${retries} times`);
+                success = await claimAndMovePi(i + 1);
+                await sleep(500);
+                if(retries >= max_retries || success) {
+                    console.log(`Exiting process now after ${retries} tries.`)
+                    process.exit(1);
+                }
             }
         }
     }, finalDelay);
